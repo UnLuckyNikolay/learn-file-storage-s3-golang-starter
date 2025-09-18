@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -31,7 +32,6 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 
 	fmt.Println("uploading thumbnail for video", videoID, "by user", userID)
 
-	// TODO: implement the upload here
 	err = r.ParseMultipartForm(10 << 20)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "Files are too big", err)
@@ -61,11 +61,12 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	videoThumbnails[videoID] = thumbnail{
+	/*videoThumbnails[videoID] = thumbnail{
 		data:      thData,
 		mediaType: header.Header.Get("Content-Type"),
-	}
-	thumbURL := fmt.Sprintf("http://localhost:%s/api/thumbnails/%s", cfg.port, videoID)
+	}*/
+	thumbDescribedWithWords := base64.StdEncoding.EncodeToString(thData)
+	thumbURL := fmt.Sprintf("data:%s;base64,%v", header.Header.Get("Content-Type"), thumbDescribedWithWords)
 	video.ThumbnailURL = &thumbURL
 	err = cfg.db.UpdateVideo(video)
 	if err != nil {
