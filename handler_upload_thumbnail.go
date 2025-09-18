@@ -1,10 +1,12 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
 	"github.com/google/uuid"
@@ -45,11 +47,11 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	}
 	defer file.Close()
 
-	thData, err := io.ReadAll(file)
+	/*thumbData, err := io.ReadAll(file)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "Couldn't read the file", err)
 		return
-	}
+	}*/
 
 	video, err := cfg.db.GetVideo(videoID)
 	if err != nil {
@@ -61,18 +63,26 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	/*videoThumbnails[videoID] = thumbnail{
-		data:      thData,
-		mediaType: header.Header.Get("Content-Type"),
-	}*/
-	thumbDescribedWithWords := base64.StdEncoding.EncodeToString(thData)
-	thumbURL := fmt.Sprintf("data:%s;base64,%v", header.Header.Get("Content-Type"), thumbDescribedWithWords)
+	//thumbDescribedWithWords := base64.StdEncoding.EncodeToString(thumbData)
+	//thumbURL := fmt.Sprintf("data:%s;base64,%v", header.Header.Get("Content-Type"), thumbDescribedWithWords)
+	thumbType := strings.Split(header.Header.Get("Content-Type"), "/")[1]
+	thumbURL := fmt.Sprintf("http://localhost:%s/assets/%s.%s", cfg.port, videoID, thumbType)
 	video.ThumbnailURL = &thumbURL
 	err = cfg.db.UpdateVideo(video)
 	if err != nil {
 		respondWithError(w, http.StatusServiceUnavailable, "Error updating video", err)
 		return
 	}
+
+	thumbFilepath := filepath.Join(cfg.assetsRoot, fmt.Sprintf("/%v.%s", videoID, thumbType))
+	thumbFile, err := os.Create(thumbFilepath)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error saving the file", err)
+		return
+	}
+	defer thumbFile.Close()
+
+	io.Copy(thumbFile, file)
 
 	respondWithJSON(w, http.StatusOK, video)
 }
