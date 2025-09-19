@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -47,11 +48,11 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	}
 	defer file.Close()
 
-	/*thumbData, err := io.ReadAll(file)
-	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Couldn't read the file", err)
+	mediatype, _, err := mime.ParseMediaType(header.Header.Get("Content-Type"))
+	if mediatype != "image/jpeg" && mediatype != "image/png" {
+		respondWithError(w, http.StatusBadRequest, "Invalid media type", err)
 		return
-	}*/
+	}
 
 	video, err := cfg.db.GetVideo(videoID)
 	if err != nil {
@@ -63,10 +64,12 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	//thumbDescribedWithWords := base64.StdEncoding.EncodeToString(thumbData)
-	//thumbURL := fmt.Sprintf("data:%s;base64,%v", header.Header.Get("Content-Type"), thumbDescribedWithWords)
-	thumbType := strings.Split(header.Header.Get("Content-Type"), "/")[1]
-	thumbURL := fmt.Sprintf("http://localhost:%s/assets/%s.%s", cfg.port, videoID, thumbType)
+	thumbTypeSplit := strings.Split(header.Header.Get("Content-Type"), "/")
+	if len(thumbTypeSplit) != 2 {
+		respondWithError(w, http.StatusBadRequest, "Invalid media type", err)
+		return
+	}
+	thumbURL := fmt.Sprintf("http://localhost:%s/assets/%s.%s", cfg.port, videoID, thumbTypeSplit[1])
 	video.ThumbnailURL = &thumbURL
 	err = cfg.db.UpdateVideo(video)
 	if err != nil {
@@ -74,7 +77,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	thumbFilepath := filepath.Join(cfg.assetsRoot, fmt.Sprintf("/%v.%s", videoID, thumbType))
+	thumbFilepath := filepath.Join(cfg.assetsRoot, fmt.Sprintf("/%v.%s", videoID, thumbTypeSplit[1]))
 	thumbFile, err := os.Create(thumbFilepath)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error saving the file", err)
