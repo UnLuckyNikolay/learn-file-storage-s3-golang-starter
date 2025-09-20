@@ -78,6 +78,19 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	io.Copy(localFile, file)
 	localFile.Seek(0, io.SeekStart)
 
+	processedVideoPath, err := processVideoForFastStart(localFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "error processing video", err)
+		return
+	}
+	processedFile, err := os.Open(processedVideoPath)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "error getting processed video", err)
+		return
+	}
+	defer processedFile.Close()
+	defer os.Remove(processedFile.Name())
+
 	// Putting into S3 Bucket
 	videoAspectStr, err := getVideoAspectRatio(localFile.Name())
 	if err != nil {
@@ -100,7 +113,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{
 		Bucket:      &cfg.s3Bucket,
 		Key:         &fileKey,
-		Body:        localFile,
+		Body:        processedFile,
 		ContentType: &videoTypeMime,
 	})
 
