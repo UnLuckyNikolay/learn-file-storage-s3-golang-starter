@@ -79,9 +79,23 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	localFile.Seek(0, io.SeekStart)
 
 	// Putting into S3 Bucket
+	videoAspectStr, err := getVideoAspectRatio(localFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "error getting video aspect ratio", err)
+		return
+	}
+	var videoAspect string
+	switch videoAspectStr {
+	case "16:9":
+		videoAspect = "landscape"
+	case "9:16":
+		videoAspect = "portrait"
+	case "other":
+		videoAspect = "other"
+	}
 	fileKeyBytes := make([]byte, 32)
 	rand.Read(fileKeyBytes)
-	fileKey := fmt.Sprintf("%s.%s", base64.RawURLEncoding.EncodeToString(fileKeyBytes), videoType)
+	fileKey := fmt.Sprintf("%s/%s.%s", videoAspect, base64.RawURLEncoding.EncodeToString(fileKeyBytes), videoType)
 
 	cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{
 		Bucket:      &cfg.s3Bucket,
